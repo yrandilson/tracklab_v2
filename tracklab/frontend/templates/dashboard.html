@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — TrackLab{% endblock %}
+{% block topbar_title %}📊 Dashboard{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+
+<div class="stats-grid" id="statsGrid">
+  {% for i in range(10) %}
+  <div class="stat-card skeleton" style="height:100px"></div>
+  {% endfor %}
+</div>
+
+<div class="grid-2 mb-2">
+  <!-- Sessions over time -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Sessões por dia (14d)</span>
+      <span class="badge b-blue">Histórico</span>
+    </div>
+    <div class="chart-container"><canvas id="sessionsChart"></canvas></div>
+  </div>
+
+  <!-- Browsers -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Navegadores</span>
+      <span class="badge b-green">Distribuição</span>
+    </div>
+    <div class="chart-container"><canvas id="browsersChart"></canvas></div>
+  </div>
+</div>
+
+<div class="grid-2 mb-2">
+  <!-- OS Distribution -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Sistemas Operacionais</span>
+    </div>
+    <div class="chart-container"><canvas id="osChart"></canvas></div>
+  </div>
+
+  <!-- Devices -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Dispositivos</span>
+    </div>
+    <div class="chart-container"><canvas id="devicesChart"></canvas></div>
+  </div>
+</div>
+
+<div class="card mb-2">
+  <div class="card-header">
+    <span class="card-title">Filtros de Rede</span>
+    <span class="badge b-blue" id="networkFilterBadge">Todos os eventos</span>
+  </div>
+  <div class="grid-3">
+    <div>
+      <div class="text-xs text-muted mb-1">Protocolo / Tipo</div>
+      <select class="input w-full" id="networkProtocolFilter">
+        <option value="all">Todos</option>
+      </select>
+    </div>
+    <div>
+      <div class="text-xs text-muted mb-1">Severidade</div>
+      <select class="input w-full" id="networkSeverityFilter">
+        <option value="all">Todas</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+      </select>
+    </div>
+    <div>
+      <div class="text-xs text-muted mb-1">IP / texto</div>
+      <input class="input w-full" id="networkIpFilter" placeholder="Ex: 192.168.0.10">
+    </div>
+  </div>
+  <div class="flex gap-2 mt-2">
+    <button class="btn btn-primary btn-sm" id="networkApplyBtn">Aplicar filtros</button>
+    <button class="btn btn-secondary btn-sm" id="networkResetBtn">Limpar</button>
+  </div>
+</div>
+
+<div class="grid-3 mb-2">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Atividade de Rede</span>
+      <span class="badge b-blue">Eventos</span>
+    </div>
+    <div class="chart-container"><canvas id="networkTypesChart"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Portas em Evidência</span>
+      <span class="badge b-green">Portas</span>
+    </div>
+    <div class="chart-container"><canvas id="networkPortsChart"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">IPs em Evidência</span>
+      <span class="badge b-purple">IPs</span>
+    </div>
+    <div class="chart-container"><canvas id="networkIpsChart"></canvas></div>
+  </div>
+</div>
+
+<div class="card mb-2">
+  <div class="card-header">
+    <span class="card-title">Eventos Recentes de Rede</span>
+    <span class="badge b-blue" id="networkEventsBadge">Últimos 10</span>
+  </div>
+  <div class="table-wrap" id="networkEventsWrap">
+    <div style="padding:24px; text-align:center; color:var(--t3); font-size:0.76rem">Nenhum evento de rede ainda</div>
+  </div>
+</div>
+
+<!-- Recent Sessions -->
+<div class="card mb-2">
+  <div class="card-header">
+    <span class="card-title">Sessões Recentes</span>
+    <a href="/admin/sessions" class="btn btn-secondary btn-sm">Ver todas →</a>
+  </div>
+  <div class="table-wrap" id="recentSessions">
+    <div style="padding:24px; text-align:center; color:var(--t3)">Carregando...</div>
+  </div>
+</div>
+
+<!-- Live Feed -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Feed ao Vivo</span>
+    <div class="live-indicator"><div class="live-dot"></div><span>TEMPO REAL</span></div>
+  </div>
+  <div id="liveFeed" style="max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; min-height:80px">
+    <div style="text-align:center; padding:20px; color:var(--t3); font-size:0.76rem">Aguardando eventos...</div>
+  </div>
+</div>
+
+<style>
+.stat-card.loaded { animation: popIn 0.3s ease backwards; }
+@keyframes popIn { from{opacity:0;transform:scale(0.94)} to{opacity:1;transform:scale(1)} }
+.chart-container { height: 260px; }
+</style>
+
+<script>
+const PALETTE = ['#4fffb0','#4f8fff','#ff4f8f','#ffb84f','#b84fff','#4fffff','#ff8f4f'];
+
+Chart.defaults.color = '#5a5a7a';
+Chart.defaults.borderColor = '#d5deea';
+Chart.defaults.font.family = "'JetBrains Mono', monospace";
+Chart.defaults.font.size = 11;
+
+let charts = {};
+let dashboardData = null;
+let networkFilterState = { protocol: 'all', severity: 'all', ip: '' };
+
+async function loadDashboard() {
+  const s = await api('/api/stats');
+  dashboardData = s;
+  renderStats(s);
+  renderCharts(s);
+  syncNetworkFilters(s);
+  renderNetworkView();
+  loadRecentSessions();
+}
+
+function normalizeNetworkProtocol(event) {
+  return (event.protocol || event.proto || event.type || 'unknown').toString().toLowerCase();
+}
+
+function getRawNetworkEvents(s) {
+  return s.network_events || s.network_recent || [];
+}
+
+function syncNetworkFilters(s) {
+  const events = getRawNetworkEvents(s);
+  const select = document.getElementById('networkProtocolFilter');
+  if (!select) return;
+  const current = select.value || 'all';
+  const protocols = Array.from(new Set(events.map(normalizeNetworkProtocol))).sort();
+  select.innerHTML = ['<option value="all">Todos</option>']
+    .concat(protocols.map(p => `<option value="${p}">${p}</option>`))
+    .join('');
+  select.value = protocols.includes(current) ? current : 'all';
+  const severity = document.getElementById('networkSeverityFilter');
+  const ip = document.getElementById('networkIpFilter');
+  if (severity) severity.value = networkFilterState.severity;
+  if (ip) ip.value = networkFilterState.ip;
+}
+
+function getFilteredNetworkEvents() {
+  if (!dashboardData) return [];
+  const events = getRawNetworkEvents(dashboardData);
+  const protocol = (document.getElementById('networkProtocolFilter')?.value || 'all').toLowerCase();
+  const severity = (document.getElementById('networkSeverityFilter')?.value || 'all').toLowerCase();
+  const ipQuery = (document.getElementById('networkIpFilter')?.value || '').trim().toLowerCase();
+  return events.filter(event => {
+    const eventProtocol = normalizeNetworkProtocol(event);
+    const eventSeverity = (event.severity || 'low').toLowerCase();
+    const haystack = [event.ip, event.peer_ip, event.source, event.details, event.port, eventProtocol].filter(Boolean).join(' ').toLowerCase();
+    if (protocol !== 'all' && eventProtocol !== protocol) return false;
+    if (severity !== 'all' && eventSeverity !== severity) return false;
+    if (ipQuery && !haystack.includes(ipQuery)) return false;
+    return true;
+  });
+}
+
+function getCounterMap(events, extractor) {
+  return events.reduce((acc, event) => {
+    const key = extractor(event);
+    if (!key) return acc;
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function renderNetworkView() {
+  const events = getFilteredNetworkEvents();
+  const allEvents = getRawNetworkEvents(dashboardData || {});
+  const filterBadge = document.getElementById('networkFilterBadge');
+  const eventsBadge = document.getElementById('networkEventsBadge');
+  if (filterBadge) {
+    filterBadge.textContent = events.length === allEvents.length ? 'Todos os eventos' : `${events.length}/${allEvents.length} filtrados`;
+  }
+  if (eventsBadge) {
+    eventsBadge.textContent = events.length ? `Últimos ${Math.min(events.length, 10)}` : 'Sem eventos';
+  }
+  renderNetworkCharts(events);
+  renderNetworkEvents(events);
+}
+
+function renderStats(s) {
+  const defs = [
+    { icon:'⊞', label:'Sessões Total', val: s.total_sessions, delta:'hoje: '+s.sessions_today, sa:'var(--c1)' },
+    { icon:'◉', label:'IPs Únicos', val: s.unique_ips, sa:'var(--c2)' },
+    { icon:'⊡', label:'Fotos', val: s.total_photos, sa:'var(--c3)' },
+    { icon:'⊕', label:'Links', val: s.total_links, delta: s.total_hits + ' hits', sa:'var(--c4)' },
+    { icon:'◎', label:'Com Geo', val: s.with_geo, sa:'var(--c5)' },
+    { icon:'⊛', label:'Fingerprints', val: s.unique_fps, sa:'var(--c1)' },
+    { icon:'🔔', label:'Alertas', val: s.unread_alerts, sa:'var(--c3)' },
+    { icon:'📅', label:'Hoje', val: s.sessions_today, sa:'var(--c2)' },
+    { icon:'🌐', label:'Eventos Rede', val: s.network_events_total || 0, sa:'var(--c2)' },
+    { icon:'🚪', label:'Portas Rede', val: Object.keys(s.network_top_ports || {}).length, sa:'var(--c4)' },
+    { icon:'🧭', label:'IPs Rede', val: Object.keys(s.network_top_ips || {}).length, sa:'var(--c5)' },
+  ];
+
+  const grid = document.getElementById('statsGrid');
+  grid.innerHTML = defs.map((d, i) => `
+    <div class="stat-card loaded" style="--sa:${d.sa}; animation-delay:${i*0.05}s">
+      <div class="stat-accent"></div>
+      <span class="stat-icon">${d.icon}</span>
+      <div class="stat-value">${d.val}</div>
+      <div class="stat-label">${d.label}</div>
+      ${d.delta ? `<div class="stat-delta">${d.delta}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function mkChart(id, type, labels, datasets, opts = {}) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(ctx, {
+    type, data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 14 } } },
+      ...opts
+    }
+  });
+}
+
+function renderCharts(s) {
+  // Sessions by day
+  const days = (s.sessions_by_day || []).reverse();
+  mkChart('sessionsChart', 'bar',
+    days.map(r => r.d || r[0]),
+    [{
+      label: 'Sessões', data: days.map(r => r.c || r[1]),
+      backgroundColor: 'rgba(79,255,176,0.25)', borderColor: '#4fffb0',
+      borderWidth: 1.5, borderRadius: 4
+    }],
+    { scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' } }, x: { grid: { display: false } } } }
+  );
+
+  // Browsers
+  const bEntries = Object.entries(s.browsers || {});
+  mkChart('browsersChart', 'doughnut',
+    bEntries.map(e => e[0]),
+    [{ data: bEntries.map(e => e[1]), backgroundColor: PALETTE, borderWidth: 0, hoverOffset: 6 }]
+  );
+
+  // OS
+  const osEntries = Object.entries(s.os_dist || {});
+  mkChart('osChart', 'doughnut',
+    osEntries.map(e => e[0]),
+    [{ data: osEntries.map(e => e[1]), backgroundColor: PALETTE.slice(2), borderWidth: 0, hoverOffset: 6 }]
+  );
+
+  // Devices
+  const devEntries = Object.entries(s.devices || {});
+  mkChart('devicesChart', 'pie',
+    devEntries.map(e => e[0]),
+    [{ data: devEntries.map(e => e[1]), backgroundColor: ['#4f8fff','#4fffb0','#ffb84f'], borderWidth: 0 }]
+  );
+
+}
+
+function renderNetworkCharts(events) {
+  const typeEntries = Object.entries(getCounterMap(events, e => normalizeNetworkProtocol(e)));
+  mkChart('networkTypesChart', 'doughnut',
+    typeEntries.map(e => e[0]),
+    [{ data: typeEntries.map(e => e[1]), backgroundColor: ['#2563eb','#0f766e','#7c3aed','#d97706','#e11d48','#14b8a6','#4f8fff'], borderWidth: 0, hoverOffset: 6 }]
+  );
+
+  const portEntries = Object.entries(getCounterMap(events, e => e.port != null ? String(e.port) : '—')).filter(([key]) => key !== '—');
+  mkChart('networkPortsChart', 'bar',
+    portEntries.map(e => e[0]),
+    [{ data: portEntries.map(e => e[1]), backgroundColor: 'rgba(37,99,235,0.22)', borderColor: '#2563eb', borderWidth: 1.2, borderRadius: 4 }],
+    { scales: { y: { beginAtZero: true, grid: { color: 'rgba(213,222,234,0.9)' } }, x: { grid: { display: false } } } }
+  );
+
+  const ipEntries = Object.entries(getCounterMap(events, e => (e.ip || e.peer_ip || '').toString())).filter(([key]) => key && key !== 'undefined');
+  mkChart('networkIpsChart', 'bar',
+    ipEntries.slice(0, 8).map(e => e[0]),
+    [{
+      data: ipEntries.slice(0, 8).map(e => e[1]),
+      backgroundColor: 'rgba(124,58,237,0.22)',
+      borderColor: '#7c3aed',
+      borderWidth: 1.2,
+      borderRadius: 4,
+    }],
+    { indexAxis: 'y', scales: { x: { beginAtZero: true, grid: { color: 'rgba(213,222,234,0.9)' } }, y: { grid: { display: false } } } }
+  );
+}
+
+async function loadRecentSessions() {
+  const d = await api('/api/sessions?per=8');
+  const el = document.getElementById('recentSessions');
+  if (!d.sessions.length) {
+    el.innerHTML = '<div style="padding:24px; text-align:center; color:var(--t3); font-size:0.76rem">Nenhuma sessão ainda</div>';
+    return;
+  }
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>ID</th><th>Quando</th><th>IP</th><th>Navegador</th><th>OS</th><th>Tela</th><th>Foto</th><th>Geo</th>
+    </tr></thead>
+    <tbody>${d.sessions.map(s => `<tr>
+      <td><span class="badge b-blue" style="font-size:0.6rem">${s.session_id}</span></td>
+      <td class="text-sm">${timeSince(s.created_at)}</td>
+      <td class="font-mono text-sm">${s.ip || '—'}</td>
+      <td><span class="badge b-green">${s.browser || '?'}</span></td>
+      <td class="text-sm">${s.os || '?'} ${s.os_ver || ''}</td>
+      <td class="text-xs text-muted">${s.screen || '—'}</td>
+      <td>${s.has_photo ? '<span class="badge b-pink">✓</span>' : '<span class="badge b-gray">—</span>'}</td>
+      <td>${s.geo_lat ? '<span class="badge b-purple">✓</span>' : '<span class="badge b-gray">—</span>'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function renderNetworkEvents(events) {
+  const wrap = document.getElementById('networkEventsWrap');
+  const rows = events.slice(0, 10);
+  if (!rows.length) {
+    wrap.innerHTML = '<div style="padding:24px; text-align:center; color:var(--t3); font-size:0.76rem">Nenhum evento de rede ainda</div>';
+    return;
+  }
+
+  wrap.innerHTML = `<table>
+    <thead><tr>
+      <th>Quando</th><th>Tipo/Proto</th><th>IP</th><th>Porta</th><th>Origem</th><th>Severidade</th><th>Detalhes</th>
+    </tr></thead>
+    <tbody>${rows.map(e => `<tr>
+      <td class="text-xs">${timeSince(e.ts)}</td>
+      <td><span class="badge b-blue">${e.protocol || e.type || '—'}</span></td>
+      <td class="text-xs font-mono">${e.ip || '—'}</td>
+      <td class="text-xs font-mono">${e.port || '—'}</td>
+      <td class="text-xs text-muted">${e.source || '—'}</td>
+      <td><span class="badge ${e.severity === 'critical' ? 'b-pink' : e.severity === 'high' ? 'b-amber' : 'b-green'}">${e.severity || 'low'}</span></td>
+      <td class="text-xs" style="max-width:480px; word-break:break-word">${e.details || '—'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function updateNetworkFilters() {
+  networkFilterState.protocol = document.getElementById('networkProtocolFilter')?.value || 'all';
+  networkFilterState.severity = document.getElementById('networkSeverityFilter')?.value || 'all';
+  networkFilterState.ip = document.getElementById('networkIpFilter')?.value || '';
+  renderNetworkView();
+}
+
+function resetNetworkFilters() {
+  const protocol = document.getElementById('networkProtocolFilter');
+  const severity = document.getElementById('networkSeverityFilter');
+  const ip = document.getElementById('networkIpFilter');
+  if (protocol) protocol.value = 'all';
+  if (severity) severity.value = 'all';
+  if (ip) ip.value = '';
+  updateNetworkFilters();
+}
+
+document.getElementById('networkProtocolFilter')?.addEventListener('change', updateNetworkFilters);
+document.getElementById('networkSeverityFilter')?.addEventListener('change', updateNetworkFilters);
+document.getElementById('networkIpFilter')?.addEventListener('input', updateNetworkFilters);
+document.getElementById('networkApplyBtn')?.addEventListener('click', updateNetworkFilters);
+document.getElementById('networkResetBtn')?.addEventListener('click', resetNetworkFilters);
+
+// Live Feed
+function onNewSession(data) {
+  const feed = document.getElementById('liveFeed');
+  const empty = feed.querySelector('div[style*="text-align"]');
+  if (empty) empty.remove();
+  const el = document.createElement('div');
+  el.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--s2);border-radius:6px;animation:slideIn 0.3s ease;border:1px solid rgba(79,255,176,0.1)';
+  el.innerHTML = `
+    <span style="font-size:0.9rem">⊞</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:0.76rem;color:var(--t1)">${data.browser} / ${data.os}</div>
+      <div style="font-size:0.65rem;color:var(--t3)">${data.ip} · ${new Date().toLocaleTimeString('pt-BR')}</div>
+    </div>
+    ${data.hasPhoto ? '<span class="badge b-pink" style="font-size:0.58rem">📸 FOTO</span>' : ''}
+    ${data.hasGeo ? '<span class="badge b-purple" style="font-size:0.58rem">📍 GEO</span>' : ''}
+  `;
+  feed.insertBefore(el, feed.firstChild);
+  if (feed.children.length > 10) feed.lastChild.remove();
+
+  // Refresh stats
+  setTimeout(loadDashboard, 500);
+}
+
+loadDashboard();
+setInterval(loadDashboard, 30000);
+</script>
+
+{% endblock %}

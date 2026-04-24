@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrackLab — Plataforma Educacional</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Clash+Display:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f4f7fb; --s1:#ffffff; --s2:#edf3f9; --b1:#d5deea;
+  --t1:#102033; --t2:#475569; --t3:#6b7280;
+  --c1:#0f766e; --c2:#2563eb; --c3:#e11d48; --c4:#d97706;
+  --mono:'JetBrains Mono',monospace; --display:'Clash Display','Syne',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--t1);font-family:var(--mono);min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background:
+  radial-gradient(circle at 10% 20%, rgba(15,118,110,0.10) 0%,transparent 45%),
+  radial-gradient(circle at 90% 80%, rgba(37,99,235,0.10) 0%,transparent 45%),
+  radial-gradient(circle at 50% 110%, rgba(124,58,237,0.06) 0%,transparent 40%);
+  pointer-events:none;}
+body::after{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(16,32,51,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(16,32,51,0.03) 1px,transparent 1px);
+  background-size:30px 30px;pointer-events:none;}
+
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:50;
+  background:rgba(255,255,255,0.84);backdrop-filter:blur(16px);
+  border-bottom:1px solid rgba(213,222,234,0.9);padding:0 40px;height:54px;
+  display:flex;align-items:center;gap:20px;
+}
+.nav-logo{font-family:var(--display);font-size:1.1rem;font-weight:700;display:flex;align-items:center;gap:8px;}
+.nav-logo-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--c1),var(--c2));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.9rem;color:#fff;}
+.nav-logo span{color:var(--c2);}
+.nav-links{display:flex;gap:4px;margin-left:auto;}
+.nav-link{font-size:0.72rem;color:var(--t3);padding:6px 12px;border-radius:5px;text-decoration:none;transition:all 0.15s;}
+.nav-link:hover{color:var(--t1);background:var(--s2);}
+.nav-link.cta{background:rgba(15,118,110,0.10);color:var(--c1);border:1px solid rgba(15,118,110,0.18);}
+.nav-link.cta:hover{background:rgba(15,118,110,0.16);}
+
+.hero{
+  min-height:100vh; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  text-align:center; padding:80px 20px 40px;
+  position:relative; z-index:1;
+}
+
+.badge{
+  font-size:0.65rem; text-transform:uppercase; letter-spacing:0.18em;
+  color:var(--c1); border:1px solid rgba(79,255,176,0.3);
+  padding:4px 14px; border-radius:20px; margin-bottom:28px;
+  background:rgba(15,118,110,0.06); display:inline-block;
+}
+
+h1{
+  font-family:var(--display); font-size:clamp(3rem,9vw,6.5rem);
+  font-weight:800; line-height:0.95; letter-spacing:-0.03em;
+  margin-bottom:20px;
+}
+
+h1 .l1{color:var(--t1);}
+h1 .l2{
+  background:linear-gradient(135deg, var(--c1) 0%, var(--c2) 50%, var(--c3) 100%);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+}
+
+.hero-sub{
+  max-width:540px; font-size:1rem; color:var(--t2);
+  line-height:1.7; margin:0 auto 40px;
+}
+
+.hero-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:60px;}
+
+.btn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:12px 24px;border-radius:8px;font-family:var(--mono);
+  font-size:0.78rem;font-weight:600;cursor:pointer;border:none;
+  text-decoration:none;transition:all 0.15s;
+}
+.btn-primary{background:linear-gradient(135deg,var(--c1),var(--c2));color:#fff;}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(37,99,235,0.18);}
+.btn-outline{background:rgba(255,255,255,0.85);color:var(--t1);border:1px solid var(--b1);}
+.btn-outline:hover{border-color:var(--c2);color:var(--c2);box-shadow:0 8px 24px rgba(16,32,51,0.06);}
+
+.features{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:14px;max-width:950px;width:100%;
+}
+
+.feat{
+  background:rgba(255,255,255,0.92);border:1px solid rgba(213,222,234,0.9);border-radius:14px;
+  padding:22px;text-align:left;position:relative;overflow:hidden;
+  transition:all 0.25s; box-shadow:0 14px 38px rgba(16,32,51,0.05);
+}
+.feat::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--fc,var(--c1));transform:scaleX(0);transform-origin:left;
+  transition:transform 0.3s;
+}
+.feat:hover::before{transform:scaleX(1);}
+.feat:hover{border-color:rgba(37,99,235,0.22);transform:translateY(-4px);}
+.feat-icon{font-size:1.8rem;margin-bottom:12px;}
+.feat-title{font-family:var(--display);font-size:0.9rem;font-weight:600;margin-bottom:6px;}
+.feat-desc{font-size:0.74rem;color:var(--t3);line-height:1.6;}
+
+.stack-section{
+  background:rgba(255,255,255,0.82);border-top:1px solid rgba(213,222,234,0.85);border-bottom:1px solid rgba(213,222,234,0.85);
+  padding:50px 40px;text-align:center;position:relative;z-index:1;
+}
+.stack-title{font-family:var(--display);font-size:1.5rem;font-weight:700;margin-bottom:28px;}
+.stack-grid{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;max-width:700px;margin:0 auto;}
+.chip{
+  background:#fff;border:1px solid var(--b1);padding:8px 16px;
+  border-radius:8px;font-size:0.75rem;color:var(--t2);
+  transition:all 0.2s;cursor:default;
+}
+.chip:hover{border-color:var(--c1);color:var(--c1);box-shadow:0 8px 18px rgba(16,32,51,0.05);}
+
+footer{
+  background:rgba(255,255,255,0.82);border-top:1px solid rgba(213,222,234,0.85);
+  padding:24px 40px;display:flex;align-items:center;gap:20px;
+  flex-wrap:wrap;justify-content:space-between;
+  position:relative;z-index:1;
+}
+.footer-logo{font-family:var(--display);font-size:0.95rem;font-weight:700;}
+.footer-logo span{color:var(--c2);}
+.footer-text{font-size:0.7rem;color:var(--t3);}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">
+    <div class="nav-logo-icon">⬡</div>
+    Track<span>Lab</span>
+  </div>
+  <div class="nav-links">
+    <a href="/capture" class="nav-link">Captura</a>
+    <a href="/login" class="nav-link">Dashboard</a>
+    <a href="/capture{% if ref %}?ref={{ref}}{% endif %}" class="nav-link cta">Iniciar Análise →</a>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="badge">🔬 Ferramenta Educacional v2.0</div>
+  <h1>
+    <div class="l1">Plataforma de</div>
+    <div class="l2">Análise Web</div>
+  </h1>
+  <p class="hero-sub">
+    Sistema completo para aprender como plataformas de rastreamento funcionam — coleta de dados do navegador, fingerprinting, câmera, geolocalização e dashboard em tempo real.
+  </p>
+  <div class="hero-btns">
+    <a href="/capture{% if ref %}?ref={{ref}}{% endif %}" class="btn btn-primary">▶ Iniciar Captura</a>
+    <a href="/login" class="btn btn-outline">📊 Acessar Dashboard</a>
+  </div>
+
+  <div class="features">
+    <div class="feat" style="--fc:#4fffb0">
+      <div class="feat-icon">🌐</div>
+      <div class="feat-title">Browser Fingerprint</div>
+      <div class="feat-desc">Canvas hash, WebGL renderer, fontes detectadas, plugins, audio context e mais de 20 parâmetros únicos.</div>
+    </div>
+    <div class="feat" style="--fc:#4f8fff">
+      <div class="feat-icon">📸</div>
+      <div class="feat-title">Captura de Câmera</div>
+      <div class="feat-desc">Acesso à câmera com permissão explícita, preview ao vivo, captura e armazenamento seguro no servidor.</div>
+    </div>
+    <div class="feat" style="--fc:#ff4f8f">
+      <div class="feat-icon">📍</div>
+      <div class="feat-title">Geolocalização GPS</div>
+      <div class="feat-desc">Coordenadas de alta precisão, abertura no OpenStreetMap, armazenamento com precisão em metros.</div>
+    </div>
+    <div class="feat" style="--fc:#ffb84f">
+      <div class="feat-icon">🔋</div>
+      <div class="feat-title">Dados do Dispositivo</div>
+      <div class="feat-desc">Bateria, tipo de conexão, velocidade de rede, CPU, RAM, pontos de toque e profundidade de cor.</div>
+    </div>
+    <div class="feat" style="--fc:#b84fff">
+      <div class="feat-icon">🔗</div>
+      <div class="feat-title">Links Rastreados</div>
+      <div class="feat-desc">Gera URLs únicas (/t/ID), conta hits totais e únicos por IP, histórico completo de acessos.</div>
+    </div>
+    <div class="feat" style="--fc:#4fffff">
+      <div class="feat-icon">📡</div>
+      <div class="feat-title">Tempo Real (SSE)</div>
+      <div class="feat-desc">Dashboard atualiza instantaneamente via Server-Sent Events quando uma nova sessão é registrada.</div>
+    </div>
+    <div class="feat" style="--fc:#4fffb0">
+      <div class="feat-icon">🗄️</div>
+      <div class="feat-title">SQLite + API REST</div>
+      <div class="feat-desc">7 tabelas normalizadas, índices, exportação CSV, API completa com autenticação e API Keys.</div>
+    </div>
+    <div class="feat" style="--fc:#ff4f8f">
+      <div class="feat-icon">🔐</div>
+      <div class="feat-title">Autenticação</div>
+      <div class="feat-desc">Login com hash SHA-256, sessões Flask, API Keys revogáveis, proteção de todas as rotas admin.</div>
+    </div>
+  </div>
+</div>
+
+<div class="stack-section">
+  <div class="stack-title">Stack Tecnológico</div>
+  <div class="stack-grid">
+    <div class="chip">Python 3.x</div>
+    <div class="chip">Flask 3.x</div>
+    <div class="chip">SQLite 3</div>
+    <div class="chip">HTML5 / CSS3</div>
+    <div class="chip">JavaScript ES2022</div>
+    <div class="chip">WebRTC (getUserMedia)</div>
+    <div class="chip">Geolocation API</div>
+    <div class="chip">Battery API</div>
+    <div class="chip">Network Info API</div>
+    <div class="chip">Canvas Fingerprint</div>
+    <div class="chip">WebGL Detection</div>
+    <div class="chip">Server-Sent Events</div>
+    <div class="chip">Chart.js 4</div>
+    <div class="chip">Fetch API</div>
+    <div class="chip">CSS Grid / Flexbox</div>
+    <div class="chip">Jinja2 Templates</div>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-logo">Track<span>Lab</span></div>
+  <div class="footer-text">Ferramenta educacional — uso ético e transparente de tecnologias web</div>
+  <a href="/login" style="font-size:0.72rem; color:var(--c1); text-decoration:none">Admin →</a>
+</footer>
+
+</body>
+</html>

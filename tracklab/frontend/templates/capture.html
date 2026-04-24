@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrackLab — Análise de Dispositivo</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Clash+Display:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f4f7fb; --s1:#ffffff; --s2:#edf3f9; --b1:#d5deea; --b2:#b8c6d9;
+  --t1:#102033; --t2:#475569; --t3:#6b7280;
+  --c1:#0f766e; --c2:#2563eb; --c3:#e11d48; --c4:#d97706; --c5:#7c3aed;
+  --mono:'JetBrains Mono',monospace; --display:'Clash Display','Syne',sans-serif;
+}
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--t1); font-family:var(--mono); min-height:100vh; }
+
+/* Animated BG */
+body::before {
+  content:''; position:fixed; inset:0;
+  background:
+    radial-gradient(circle at 15% 40%, rgba(15,118,110,0.10) 0%, transparent 45%),
+    radial-gradient(circle at 85% 20%, rgba(37,99,235,0.10) 0%, transparent 45%),
+    radial-gradient(circle at 50% 85%, rgba(124,58,237,0.08) 0%, transparent 40%);
+  pointer-events:none; z-index:0;
+}
+
+/* Grid */
+body::after {
+  content:''; position:fixed; inset:0;
+  background-image:
+    linear-gradient(rgba(16,32,51,0.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(16,32,51,0.03) 1px,transparent 1px);
+  background-size:32px 32px;
+  pointer-events:none; z-index:0;
+}
+
+.wrapper {
+  max-width:900px; margin:0 auto;
+  padding:20px; position:relative; z-index:1;
+}
+
+/* Header */
+.cap-header {
+  display:flex; align-items:center; gap:12px;
+  padding:16px 0 20px;
+  border-bottom:1px solid rgba(213,222,234,0.9);
+  margin-bottom:24px;
+}
+
+.logo {
+  width:36px; height:36px; background:linear-gradient(135deg, var(--c1), var(--c2));
+  border-radius:8px; display:flex; align-items:center;
+  justify-content:center; font-size:1.1rem; flex-shrink:0; color:#fff;
+}
+
+.logo-text { font-family:var(--display); font-size:1.1rem; font-weight:700; }
+.logo-text span { color:var(--c1); }
+
+.header-right {
+  margin-left:auto; display:flex; align-items:center; gap:10px;
+}
+
+.session-id-display {
+  font-size:0.65rem; color:var(--t3);
+  background:rgba(255,255,255,0.9); border:1px solid rgba(213,222,234,0.9);
+  padding:4px 10px; border-radius:20px;
+}
+
+/* Consent */
+.consent-banner {
+  background:rgba(37,99,235,0.06);
+  border:1px solid rgba(37,99,235,0.18);
+  border-radius:10px; padding:14px 18px;
+  margin-bottom:20px; font-size:0.78rem; line-height:1.7;
+  color:#334155;
+  display:flex; gap:12px; align-items:flex-start;
+}
+
+.consent-icon { font-size:1.3rem; flex-shrink:0; margin-top:2px; }
+.consent-banner strong { color:var(--c2); }
+
+/* Main grid */
+.capture-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+}
+
+@media(max-width:680px){ .capture-grid { grid-template-columns:1fr; } }
+
+/* Panel */
+.panel {
+  background:rgba(255,255,255,0.92);
+  border:1px solid rgba(213,222,234,0.9);
+  border-radius:14px; padding:18px;
+  transition:border-color 0.2s;
+  box-shadow:0 16px 48px rgba(16,32,51,0.05);
+}
+
+.panel:hover { border-color:rgba(37,99,235,0.25); }
+
+.panel-header {
+  display:flex; align-items:center; gap:8px;
+  margin-bottom:14px; padding-bottom:12px;
+  border-bottom:1px solid rgba(213,222,234,0.85);
+}
+
+.panel-title {
+  font-size:0.68rem; text-transform:uppercase;
+  letter-spacing:0.14em; color:var(--t3); font-weight:600;
+}
+
+.panel-badge { margin-left:auto; }
+
+/* Data rows */
+.data-table { width:100%; }
+
+.dr {
+  display:flex; justify-content:space-between;
+  align-items:flex-start; gap:10px;
+  padding:5px 0;
+  border-bottom:1px solid rgba(16,32,51,0.04);
+}
+
+.dr:last-child { border-bottom:none; }
+.dr-label { font-size:0.65rem; color:var(--t3); text-transform:uppercase; letter-spacing:0.08em; flex-shrink:0; padding-top:1px; }
+.dr-val { font-size:0.72rem; color:var(--c1); text-align:right; word-break:break-all; max-width:60%; }
+.dr-val.blue { color:var(--c2); }
+.dr-val.pink { color:var(--c3); }
+.dr-val.amber { color:var(--c4); }
+
+/* Camera */
+.cam-wrap {
+  position:relative; width:100%; aspect-ratio:4/3;
+  background:#0f172a; border-radius:12px; overflow:hidden;
+  margin-bottom:10px; border:1px solid rgba(213,222,234,0.9);
+}
+
+#videoEl { width:100%; height:100%; object-fit:cover; display:block; }
+
+.cam-overlay {
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:10px;
+  background:rgba(15,23,42,0.72);
+  transition:opacity 0.3s;
+}
+
+.cam-overlay.hide { opacity:0; pointer-events:none; }
+
+.cam-icon { font-size:2.5rem; }
+.cam-hint { font-size:0.75rem; color:var(--t3); text-align:center; padding:0 16px; line-height:1.5; }
+
+/* Scan line effect */
+.cam-scan {
+  position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.05) 3px, rgba(0,0,0,0.05) 4px);
+}
+
+/* Corner brackets */
+.corner { position:absolute; width:16px; height:16px; border-color:var(--c1); border-style:solid; opacity:0.7; }
+.corner.tl { top:6px; left:6px; border-width:2px 0 0 2px; }
+.corner.tr { top:6px; right:6px; border-width:2px 2px 0 0; }
+.corner.bl { bottom:6px; left:6px; border-width:0 0 2px 2px; }
+.corner.br { bottom:6px; right:6px; border-width:0 2px 2px 0; }
+
+/* Buttons */
+.btn {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:8px 14px; border-radius:6px;
+  font-family:var(--mono); font-size:0.73rem; font-weight:600;
+  cursor:pointer; border:none; transition:all 0.15s; text-decoration:none;
+}
+
+.btn-primary { background:linear-gradient(135deg, var(--c1), var(--c2)); color:#fff; }
+.btn-primary:hover { filter:brightness(1.05); box-shadow:0 10px 24px rgba(37,99,235,0.18); }
+.btn-primary:disabled { opacity:0.3; cursor:not-allowed; }
+
+.btn-secondary { background:#fff; color:var(--t2); border:1px solid var(--b1); }
+.btn-secondary:hover { color:var(--t1); border-color:var(--c2); }
+
+.btn-danger { background:rgba(255,79,143,0.1); color:var(--c3); border:1px solid rgba(255,79,143,0.2); }
+.btn-danger:hover { background:rgba(225,29,72,0.14); }
+.btn-danger:disabled { opacity:0.3; cursor:not-allowed; }
+
+.btn-success { background:rgba(79,255,176,0.1); color:var(--c1); border:1px solid rgba(79,255,176,0.2); }
+.btn-success:hover { background:rgba(15,118,110,0.12); }
+.btn-success:disabled { opacity:0.3; cursor:not-allowed; }
+
+.btn-row { display:flex; gap:8px; flex-wrap:wrap; }
+.btn-row .btn { flex:1; justify-content:center; }
+
+/* Progress */
+.progress-wrap { width:100%; height:4px; background:rgba(213,222,234,0.95); border-radius:2px; overflow:hidden; margin:10px 0; }
+.progress-bar { height:100%; background:var(--c1); border-radius:2px; transition:width 0.4s; }
+
+/* Status alert */
+.alert {
+  display:flex; align-items:center; gap:8px;
+  padding:8px 12px; border-radius:6px;
+  font-size:0.72rem; margin-top:10px;
+}
+
+.alert-success { background:rgba(79,255,176,0.06); color:var(--c1); border:1px solid rgba(79,255,176,0.15); }
+.alert-info    { background:rgba(37,99,235,0.06); color:var(--c2); border:1px solid rgba(37,99,235,0.15); }
+.alert-warn    { background:rgba(217,119,6,0.08); color:var(--c4); border:1px solid rgba(217,119,6,0.16); }
+.alert-error   { background:rgba(225,29,72,0.08); color:var(--c3); border:1px solid rgba(225,29,72,0.16); }
+
+/* Captured image */
+#capturedWrap { display:none; margin-top:10px; }
+#capturedImg { width:100%; border-radius:8px; border:1px solid rgba(79,255,176,0.3); }
+#capturedImg { width:100%; border-radius:8px; border:1px solid rgba(37,99,235,0.18); }
+
+/* Fingerprint visual */
+.fp-visual {
+  font-size:1.6rem; font-weight:700; letter-spacing:0.15em;
+  color:var(--c2); text-align:center; padding:10px;
+  background:rgba(255,255,255,0.92); border-radius:8px;
+  border:1px solid rgba(37,99,235,0.16);
+  margin-bottom:10px;
+  text-shadow:none;
+}
+
+/* Battery */
+.battery-wrap {
+  display:flex; align-items:center; gap:8px; margin-top:8px;
+}
+
+.battery-bar-outer {
+  height:14px; flex:1; background:var(--s2);
+  border:1px solid var(--b1); border-radius:4px; overflow:hidden;
+  position:relative;
+}
+
+.battery-bar-inner {
+  height:100%; transition:width 0.5s, background 0.5s;
+  border-radius:3px;
+}
+
+/* Save Section */
+.save-section {
+  grid-column:1 / -1;
+  background:var(--s1); border:1px solid var(--b1);
+  border-radius:12px; padding:20px;
+}
+
+.save-row {
+  display:flex; align-items:center; gap:12px;
+  flex-wrap:wrap;
+}
+
+.save-progress {
+  flex:1; min-width:200px;
+}
+
+.save-steps {
+  display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;
+}
+
+.save-step {
+  display:flex; align-items:center; gap:6px;
+  font-size:0.65rem; padding:4px 10px;
+  border-radius:20px; border:1px solid var(--b1);
+  color:var(--t3); transition:all 0.3s;
+}
+
+.save-step.done { border-color:rgba(79,255,176,0.3); color:var(--c1); background:rgba(79,255,176,0.05); }
+.save-step.active { border-color:rgba(79,143,255,0.4); color:var(--c2); background:rgba(79,143,255,0.06); animation:savePulse 1s infinite; }
+
+@keyframes savePulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+canvas { display:none; }
+
+/* Toast */
+#toastEl {
+  position:fixed; bottom:20px; right:20px; z-index:99;
+  background:var(--s2); border:1px solid var(--b1);
+  border-radius:8px; padding:10px 16px;
+  font-size:0.75rem; transform:translateY(80px); opacity:0;
+  transition:all 0.3s; pointer-events:none; max-width:280px;
+}
+
+#toastEl.show { transform:translateY(0); opacity:1; }
+#toastEl.success { border-color:rgba(79,255,176,0.4); color:var(--c1); }
+#toastEl.info    { border-color:rgba(79,143,255,0.4); color:var(--c2); }
+#toastEl.warn    { border-color:rgba(255,184,79,0.4); color:var(--c4); }
+#toastEl.error   { border-color:rgba(255,79,143,0.4); color:var(--c3); }
+
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-thumb { background:var(--b2); border-radius:3px; }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+  <!-- Header -->
+  <div class="cap-header">
+    <div class="logo">⬡</div>
+    <div class="logo-text">Track<span>Lab</span></div>
+    <div style="font-size:0.65rem; color:var(--t3)">/ Análise de Dispositivo</div>
+    <div class="header-right">
+      <div class="session-id-display" id="sidDisplay">SID: —</div>
+    </div>
+  </div>
+
+  <!-- Consent -->
+  <div class="consent-banner">
+    <div class="consent-icon">🔬</div>
+    <div>
+      <strong>Ferramenta Educacional — Consentimento Informado</strong><br>
+      Esta página coleta metadados do <em>seu próprio navegador</em> para fins de aprendizado sobre sistemas de análise web. A câmera é ativada apenas com sua permissão explícita. Dados são enviados ao servidor local de demonstração.
+    </div>
+  </div>
+
+  <div class="capture-grid">
+
+    <!-- Browser Data -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Navegador & Sistema</span>
+        <span class="panel-badge" id="browserStatus"></span>
+      </div>
+      <div id="browserRows">
+        <div class="dr"><span class="dr-label">Coletando...</span></div>
+      </div>
+    </div>
+
+    <!-- Network & Screen -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Rede & Tela</span>
+      </div>
+      <div id="networkRows">
+        <div class="dr"><span class="dr-label">Coletando...</span></div>
+      </div>
+      <div style="margin-top:10px;">
+        <div style="font-size:0.65rem; color:var(--t3); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.1em">Bateria</div>
+        <div class="battery-wrap" id="batteryWrap">
+          <span style="font-size:0.8rem" id="battIcon">🔋</span>
+          <div class="battery-bar-outer">
+            <div class="battery-bar-inner" id="battBar" style="width:0%; background:var(--c1)"></div>
+          </div>
+          <span style="font-size:0.72rem; color:var(--t2)" id="battPct">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Camera -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Câmera ao Vivo</span>
+        <span id="camStatus" class="panel-badge"></span>
+      </div>
+      <div class="cam-wrap">
+        <video id="videoEl" autoplay playsinline muted></video>
+        <div class="cam-scan"></div>
+        <div class="corner tl"></div><div class="corner tr"></div>
+        <div class="corner bl"></div><div class="corner br"></div>
+        <div class="cam-overlay" id="camOverlay">
+          <span class="cam-icon">📷</span>
+          <span class="cam-hint">Clique em "Ligar Câmera" para solicitar acesso ao dispositivo</span>
+        </div>
+      </div>
+      <canvas id="snapCanvas"></canvas>
+      <div class="btn-row">
+        <button class="btn btn-success" id="camOnBtn" onclick="startCamera()">▶ Ligar</button>
+        <button class="btn btn-primary" id="snapBtn" onclick="capturePhoto()" disabled>📸 Foto</button>
+        <button class="btn btn-danger" id="camOffBtn" onclick="stopCamera()" disabled>⏹ Parar</button>
+      </div>
+      <div id="capturedWrap">
+        <div style="font-size:0.65rem; color:var(--t3); text-transform:uppercase; margin-bottom:6px; margin-top:12px; letter-spacing:0.1em">Captura</div>
+        <img id="capturedImg" alt="Foto capturada">
+      </div>
+    </div>
+
+    <!-- Fingerprint & Extra -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Fingerprint & Extras</span>
+      </div>
+      <div class="fp-visual" id="fpVisual">••••••••</div>
+      <div id="fpRows"></div>
+      <hr style="border:none; border-top:1px solid var(--b1); margin:12px 0">
+      <!-- Geolocation -->
+      <div class="panel-header" style="border:none; padding:0; margin-bottom:10px;">
+        <span class="panel-title">Geolocalização</span>
+        <span id="geoStatus"></span>
+      </div>
+      <div id="geoRows">
+        <div class="dr"><span class="dr-label">Não solicitada</span></div>
+      </div>
+      <button class="btn btn-secondary w-full mt-1" onclick="requestGeo()" id="geoBtn" style="width:100%; justify-content:center; margin-top:8px">
+        📍 Solicitar Localização GPS
+      </button>
+    </div>
+
+    <!-- Save Section -->
+    <div class="save-section">
+      <div class="save-row">
+        <div style="flex:1; min-width:180px">
+          <div style="font-size:0.9rem; font-weight:600; color:var(--t1); margin-bottom:4px">Salvar Sessão</div>
+          <div style="font-size:0.74rem; color:var(--t3)">Envia todos os dados coletados para o banco de dados do servidor</div>
+        </div>
+        <button class="btn btn-primary" onclick="saveSession()" id="saveBtn" style="padding:12px 24px; font-size:0.82rem">
+          💾 Salvar no Servidor
+        </button>
+        <a href="/dashboard" class="btn btn-secondary">📊 Dashboard</a>
+      </div>
+
+      <div class="save-steps mt-1" id="saveSteps">
+        <div class="save-step" id="step-collect"><span>⊙</span> Coletar dados</div>
+        <div class="save-step" id="step-finger"><span>⊛</span> Gerar fingerprint</div>
+        <div class="save-step" id="step-camera"><span>📷</span> Câmera</div>
+        <div class="save-step" id="step-geo"><span>📍</span> Geolocalização</div>
+        <div class="save-step" id="step-send"><span>⊕</span> Enviar servidor</div>
+        <div class="save-step" id="step-saved"><span>✓</span> Salvo</div>
+      </div>
+
+      <div id="saveAlertEl" style="display:none"></div>
+    </div>
+
+  </div><!-- /grid -->
+</div>
+
+<div id="toastEl"></div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const REF = new URLSearchParams(location.search).get('ref') || '';
+let SID = 'S' + Date.now().toString(36).toUpperCase();
+let stream = null;
+let capturedPhoto = null;
+let geoData = null;
+let batteryData = {};
+let connectionData = {};
+
+document.getElementById('sidDisplay').textContent = 'SID: ' + SID;
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let toastT;
+function toast(msg, type = 'info') {
+  const el = document.getElementById('toastEl');
+  el.textContent = msg; el.className = 'show ' + type;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => el.className = '', 3000);
+}
+
+function dr(label, val, cls = '') {
+  return `<div class="dr"><span class="dr-label">${label}</span><span class="dr-val ${cls}">${val}</span></div>`;
+}
+
+// ─── Collect Browser Data ─────────────────────────────────────────────────────
+function collectBrowserData() {
+  const n = navigator;
+  const rows = [
+    ['User-Agent', n.userAgent.substring(0, 55) + '...'],
+    ['Idioma', n.language],
+    ['Todos Idiomas', (n.languages || []).slice(0,3).join(', ')],
+    ['Plataforma', n.platform],
+    ['Cookies', n.cookieEnabled ? '✅ Ativo' : '❌ Off'],
+    ['Do Not Track', n.doNotTrack === '1' ? '🔒 Sim' : '❌ Não'],
+    ['Online', n.onLine ? '✅ Sim' : '⚠ Offline'],
+    ['Java', n.javaEnabled?.() ? 'Sim' : 'Não'],
+  ];
+  document.getElementById('browserRows').innerHTML = rows.map(([l,v]) => dr(l, v)).join('');
+  markStep('collect', 'done');
+}
+
+function collectNetworkData() {
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (conn) {
+    connectionData = { type: conn.effectiveType, speed: conn.downlink, rtt: conn.rtt };
+  }
+  const rows = [
+    ['Tela', `${screen.width}×${screen.height}`],
+    ['Viewport', `${innerWidth}×${innerHeight}`],
+    ['Pixel Ratio', window.devicePixelRatio + 'x'],
+    ['Profundidade Cor', screen.colorDepth + ' bit'],
+    ['Fuso Horário', Intl.DateTimeFormat().resolvedOptions().timeZone],
+    ['Memória RAM', (navigator.deviceMemory || '?') + ' GB'],
+    ['CPU Cores', navigator.hardwareConcurrency || '?'],
+    ['Toque', navigator.maxTouchPoints > 0 ? `✅ ${navigator.maxTouchPoints}pts` : '🖱 Mouse'],
+    ['Conexão', conn ? `${conn.effectiveType} (${conn.downlink}Mbps)` : '—'],
+  ];
+  document.getElementById('networkRows').innerHTML = rows.map(([l,v]) => dr(l, v, 'blue')).join('');
+}
+
+// ─── Battery API ──────────────────────────────────────────────────────────────
+async function collectBattery() {
+  if (!navigator.getBattery) return;
+  try {
+    const batt = await navigator.getBattery();
+    batteryData = { level: batt.level, charging: batt.charging };
+    updateBatteryUI(batt);
+    batt.addEventListener('levelchange', () => updateBatteryUI(batt));
+    batt.addEventListener('chargingchange', () => updateBatteryUI(batt));
+  } catch {}
+}
+
+function updateBatteryUI(batt) {
+  const pct = Math.round(batt.level * 100);
+  batteryData = { level: batt.level, charging: batt.charging };
+  document.getElementById('battPct').textContent = pct + '%';
+  document.getElementById('battIcon').textContent = batt.charging ? '⚡' : (pct < 20 ? '🪫' : '🔋');
+  const bar = document.getElementById('battBar');
+  bar.style.width = pct + '%';
+  bar.style.background = pct < 20 ? 'var(--c3)' : pct < 50 ? 'var(--c4)' : 'var(--c1)';
+}
+
+// ─── Fingerprint ──────────────────────────────────────────────────────────────
+function buildFingerprint() {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.textBaseline = 'top'; ctx.font = '14px Courier';
+  ctx.fillStyle = '#f60'; ctx.fillRect(0, 0, 10, 10);
+  ctx.fillStyle = '#069'; ctx.fillText('TrackLab⬡', 2, 2);
+  const cHash = canvas.toDataURL().slice(-40);
+
+  // Font detection
+  const baseFonts = ['serif', 'sans-serif', 'monospace'];
+  const testFonts = ['Arial','Georgia','Times New Roman','Courier New','Verdana','Trebuchet MS','Comic Sans MS','Impact'];
+  const testEl = document.createElement('canvas').getContext('2d');
+  const detectedFonts = testFonts.filter(f => {
+    testEl.font = `14px ${f}`; const w1 = testEl.measureText('mmm').width;
+    testEl.font = `14px sans-serif`; const w2 = testEl.measureText('mmm').width;
+    return w1 !== w2;
+  });
+
+  // Plugins
+  const plugins = [...(navigator.plugins || [])].map(p => p.name);
+
+  // WebGL
+  let webgl = 'N/A';
+  try {
+    const c = document.createElement('canvas');
+    const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+    if (gl) {
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      webgl = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    }
+  } catch {}
+
+  // Audio fingerprint
+  let audioFP = 'N/A';
+  try {
+    const ctx2 = new OfflineAudioContext(1, 44100, 44100);
+    audioFP = String(ctx2.sampleRate);
+  } catch {}
+
+  const raw = [
+    navigator.userAgent, navigator.language,
+    screen.width, screen.height, screen.colorDepth,
+    navigator.hardwareConcurrency, navigator.deviceMemory,
+    cHash, plugins.join(','), detectedFonts.join(',')
+  ].join('|');
+
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    hash = ((hash << 5) - hash) + raw.charCodeAt(i);
+    hash |= 0;
+  }
+  const fp = Math.abs(hash).toString(16).toUpperCase().padStart(8, '0');
+  document.getElementById('fpVisual').textContent = fp;
+
+  const fpRows = [
+    ['Canvas Hash', cHash.slice(-12)],
+    ['WebGL Renderer', webgl.substring(0, 28)],
+    ['Fontes Detect.', detectedFonts.length + ' fontes'],
+    ['Plugins', plugins.length || '0'],
+    ['Audio Sample', audioFP],
+    ['Timezone Offset', new Date().getTimezoneOffset() + 'min'],
+  ];
+  document.getElementById('fpRows').innerHTML = fpRows.map(([l,v]) => dr(l, v, 'amber')).join('');
+  markStep('finger', 'done');
+
+  return { fp, cHash, detectedFonts, plugins, webgl };
+}
+
+// ─── Camera ───────────────────────────────────────────────────────────────────
+async function startCamera() {
+  const status = document.getElementById('camStatus');
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width:{ideal:1280}, height:{ideal:720}, facingMode:'user' }, audio: false });
+    document.getElementById('videoEl').srcObject = stream;
+    document.getElementById('camOverlay').classList.add('hide');
+    document.getElementById('snapBtn').disabled = false;
+    document.getElementById('camOffBtn').disabled = false;
+    document.getElementById('camOnBtn').disabled = true;
+    status.innerHTML = '<span style="color:var(--c1); font-size:0.65rem">● ATIVA</span>';
+    markStep('camera', 'done');
+    toast('Câmera ativada', 'success');
+  } catch(e) {
+    status.innerHTML = '<span style="color:var(--c3); font-size:0.65rem">✕ NEGADA</span>';
+    document.getElementById('camOverlay').querySelector('.cam-hint').textContent = '⚠ Permissão negada: ' + e.message;
+    toast('Câmera: ' + e.message, 'error');
+  }
+}
+
+function capturePhoto() {
+  const v = document.getElementById('videoEl');
+  const c = document.getElementById('snapCanvas');
+  c.width = v.videoWidth || 640; c.height = v.videoHeight || 480;
+  c.getContext('2d').drawImage(v, 0, 0);
+  capturedPhoto = c.toDataURL('image/jpeg', 0.85);
+  document.getElementById('capturedImg').src = capturedPhoto;
+  document.getElementById('capturedWrap').style.display = 'block';
+  toast('Foto capturada!', 'success');
+}
+
+function stopCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  document.getElementById('videoEl').srcObject = null;
+  document.getElementById('camOverlay').classList.remove('hide');
+  document.getElementById('snapBtn').disabled = true;
+  document.getElementById('camOffBtn').disabled = true;
+  document.getElementById('camOnBtn').disabled = false;
+  document.getElementById('camStatus').innerHTML = '';
+  toast('Câmera desligada', 'info');
+}
+
+// ─── Geolocation ─────────────────────────────────────────────────────────────
+function requestGeo() {
+  document.getElementById('geoStatus').innerHTML = '<span style="color:var(--c4); font-size:0.65rem">⏳ Aguardando...</span>';
+  navigator.geolocation?.getCurrentPosition(
+    pos => {
+      const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+      geoData = { lat, lng, accuracy };
+      const rows = [
+        ['Latitude', lat.toFixed(6)],
+        ['Longitude', lng.toFixed(6)],
+        ['Precisão', accuracy.toFixed(0) + 'm'],
+      ];
+      document.getElementById('geoRows').innerHTML = rows.map(([l,v]) => dr(l, v, 'pink')).join('');
+      document.getElementById('geoStatus').innerHTML = '<span style="color:var(--c1); font-size:0.65rem">✅ OK</span>';
+      document.getElementById('geoBtn').textContent = '✅ Localização obtida';
+      document.getElementById('geoBtn').disabled = true;
+      markStep('geo', 'done');
+      toast('📍 Localização obtida!', 'success');
+    },
+    err => {
+      const msgs = {1:'Permissão negada',2:'Indisponível',3:'Timeout'};
+      document.getElementById('geoStatus').innerHTML = `<span style="color:var(--c3); font-size:0.65rem">✕ ${msgs[err.code]||'Erro'}</span>`;
+      toast('Geo: ' + (msgs[err.code] || err.message), 'warn');
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+// ─── Steps ────────────────────────────────────────────────────────────────────
+function markStep(id, state) {
+  const el = document.getElementById('step-' + id);
+  if (el) el.className = 'save-step ' + state;
+}
+
+// ─── Save Session ─────────────────────────────────────────────────────────────
+async function saveSession() {
+  const fpData = buildFingerprint();
+  markStep('send', 'active');
+
+  const payload = {
+    sessionId: SID,
+    userAgent: navigator.userAgent,
+    language: navigator.language,
+    languages: (navigator.languages || []).join(','),
+    platform: navigator.platform,
+    screen: `${screen.width}×${screen.height}`,
+    viewport: `${innerWidth}×${innerHeight}`,
+    colorDepth: screen.colorDepth,
+    pixelRatio: devicePixelRatio,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    cpuCores: navigator.hardwareConcurrency,
+    memoryGb: navigator.deviceMemory,
+    touchPoints: navigator.maxTouchPoints,
+    cookies: navigator.cookieEnabled,
+    dnt: navigator.doNotTrack === '1',
+    online: navigator.onLine,
+    fingerprint: fpData.fp,
+    canvasHash: fpData.cHash,
+    fonts: fpData.detectedFonts,
+    plugins: fpData.plugins,
+    webgl: fpData.webgl,
+    connectionType: connectionData.type,
+    connectionSpeed: connectionData.speed,
+    batteryLevel: batteryData.level,
+    batteryCharging: batteryData.charging,
+    geo: geoData,
+    photo: capturedPhoto,
+    refLinkId: REF || null,
+  };
+
+  try {
+    document.getElementById('saveBtn').disabled = true;
+    document.getElementById('saveBtn').textContent = '⏳ Salvando...';
+
+    const r = await fetch('/api/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await r.json();
+
+    if (data.ok) {
+      markStep('send', 'done'); markStep('saved', 'done');
+      const alertEl = document.getElementById('saveAlertEl');
+      alertEl.style.display = 'flex';
+      alertEl.className = 'alert alert-success mt-1';
+      alertEl.innerHTML = `✅ Sessão <strong>${data.sessionId}</strong> salva com sucesso! <a href="/dashboard" style="color:var(--c1); margin-left:auto; text-decoration:none">→ Ver Dashboard</a>`;
+      toast('💾 Sessão salva: ' + data.sessionId, 'success');
+    } else {
+      throw new Error(data.error);
+    }
+  } catch(e) {
+    markStep('send', '');
+    const alertEl = document.getElementById('saveAlertEl');
+    alertEl.style.display = 'flex';
+    alertEl.className = 'alert alert-error mt-1';
+    alertEl.innerHTML = `❌ Erro ao salvar: ${e.message} (servidor offline?)`;
+    toast('Erro: ' + e.message, 'error');
+    document.getElementById('saveBtn').disabled = false;
+    document.getElementById('saveBtn').textContent = '💾 Salvar no Servidor';
+  }
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+collectBrowserData();
+collectNetworkData();
+collectBattery();
+buildFingerprint();
+</script>
+</body>
+</html>

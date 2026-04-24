@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Sessões — TrackLab{% endblock %}
+{% block topbar_title %}⊞ Sessões{% endblock %}
+{% block extra_head %}
+<style>
+.search-bar { display:flex; gap:10px; margin-bottom:20px; align-items:center; flex-wrap:wrap; }
+.pagination { display:flex; gap:6px; align-items:center; margin-top:16px; justify-content:center; }
+.page-btn { background:var(--s2); border:1px solid var(--b1); color:var(--t2); padding:5px 12px; border-radius:5px; cursor:pointer; font-family:var(--mono); font-size:0.72rem; }
+.page-btn:hover { border-color:var(--b2); color:var(--t1); }
+.page-btn.active { background:rgba(79,255,176,0.1); border-color:rgba(79,255,176,0.3); color:var(--c1); }
+.page-btn:disabled { opacity:0.3; cursor:not-allowed; }
+.flag-chip { display:inline-block; font-size:0.7rem; padding:1px 6px; background:var(--s2); border-radius:4px; }
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="search-bar">
+  <input class="input" id="searchInput" placeholder="Buscar por IP, browser, OS, fingerprint..." style="flex:1; min-width:200px" oninput="debounceSearch()">
+  <select class="input" id="perPage" onchange="loadSessions()" style="width:auto">
+    <option value="20">20/pág</option>
+    <option value="50">50/pág</option>
+    <option value="100">100/pág</option>
+  </select>
+  <button class="btn btn-secondary" onclick="loadSessions()">🔄 Atualizar</button>
+  <a href="/api/export/sessions" class="btn btn-secondary">📥 CSV</a>
+</div>
+
+<div class="card">
+  <div id="tableWrap" class="table-wrap">
+    <div style="padding:40px; text-align:center; color:var(--t3)">Carregando...</div>
+  </div>
+  <div class="pagination" id="pagination"></div>
+</div>
+
+<!-- Session Detail Modal -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal" style="width:640px" id="detailContent"></div>
+</div>
+
+<script>
+let currentPage = 1;
+let searchTimer;
+
+function debounceSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { currentPage = 1; loadSessions(); }, 400);
+}
+
+async function loadSessions() {
+  const q = document.getElementById('searchInput').value;
+  const per = document.getElementById('perPage').value;
+  const d = await api(`/api/sessions?page=${currentPage}&per=${per}&q=${encodeURIComponent(q)}`);
+  renderTable(d);
+  renderPagination(d.total, per);
+}
+
+function renderTable(d) {
+  const wrap = document.getElementById('tableWrap');
+  if (!d.sessions.length) {
+    wrap.innerHTML = '<div style="padding:40px; text-align:center; color:var(--t3)">Nenhuma sessão encontrada</div>';
+    return;
+  }
+  wrap.innerHTML = `<table>
+    <thead><tr>
+      <th>Session ID</th><th>Quando</th><th>IP</th><th>Browser</th><th>OS</th><th>Dispositivo</th>
+      <th>Tela</th><th>Idioma</th><th>Foto</th><th>Geo</th><th>FP</th><th>Ações</th>
+    </tr></thead>
+    <tbody>${d.sessions.map(s => `<tr>
+      <td><span class="badge b-blue" style="font-size:0.58rem; cursor:pointer" onclick="showDetail('${s.session_id}')">${s.session_id}</span></td>
+      <td class="text-xs">${timeSince(s.created_at)}</td>
+      <td class="font-mono text-xs">${s.ip || '—'}</td>
+      <td><span class="badge b-green">${s.browser||'?'} ${s.browser_ver ? s.browser_ver.split('.')[0] : ''}</span></td>
+      <td class="text-xs">${s.os||'?'} ${s.os_ver||''}</td>
+      <td><span class="badge ${s.device_type==='Mobile'?'b-amber':s.device_type==='Tablet'?'b-purple':'b-gray'}">${s.device_type||'?'}</span></td>
+      <td class="text-xs">${s.screen||'—'}</td>
+      <td class="text-xs">${s.language||'—'}</td>
+      <td>${s.has_photo ? '<span class="badge b-pink">📸</span>' : '—'}</td>
+      <td>${s.geo_lat ? `<span class="badge b-purple" title="${s.geo_lat?.toFixed(4)}, ${s.geo_lng?.toFixed(4)}">📍</span>` : '—'}</td>
+      <td><span class="badge b-amber" style="font-size:0.55rem">${(s.fingerprint||'—').substring(0,8)}</span></td>
+      <td style="display:flex; gap:4px">
+        <button class="btn btn-secondary btn-xs" onclick="showDetail('${s.session_id}')">🔍</button>
+        <button class="btn btn-danger btn-xs" onclick="deleteSession('${s.session_id}')">✕</button>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function renderPagination(total, per) {
+  const pages = Math.ceil(total / per);
+  const el = document.getElementById('pagination');
+  if (pages <= 1) { el.innerHTML = ''; return; }
+  const btns = [];
+  btns.push(`<button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>`);
+  for (let i = 1; i <= Math.min(pages, 7); i++) {
+    btns.push(`<button class="page-btn ${i===currentPage?'active':''}" onclick="goPage(${i})">${i}</button>`);
+  }
+  if (pages > 7) btns.push(`<span style="color:var(--t3)">... ${pages}</span>`);
+  btns.push(`<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===pages?'disabled':''}>›</button>`);
+  btns.push(`<span class="text-muted" style="font-size:0.65rem">${total} total</span>`);
+  el.innerHTML = btns.join('');
+}
+
+function goPage(p) { currentPage = p; loadSessions(); }
+
+async function showDetail(sid) {
+  const d = await api(`/api/sessions/${sid}`);
+  const s = d.session;
+  const modal = document.getElementById('detailContent');
+  modal.innerHTML = `
+    <button class="modal-close" onclick="closeModal('detailModal')">✕</button>
+    <div class="card-title mb-2">🔍 Sessão: ${s.session_id}</div>
+    <div class="grid-2">
+      <div>
+        <div class="card-title mb-1">Sistema</div>
+        ${field('Browser', `${s.browser} ${s.browser_ver}`)}
+        ${field('OS', `${s.os} ${s.os_ver}`)}
+        ${field('Dispositivo', s.device_type)}
+        ${field('Tela', s.screen)}
+        ${field('Viewport', s.viewport)}
+        ${field('Pixel Ratio', s.pixel_ratio)}
+        ${field('Cores', s.cpu_cores)}
+        ${field('RAM', s.memory_gb + ' GB')}
+        ${field('Toque', s.touch_points > 0 ? s.touch_points + ' pontos' : 'Não')}
+      </div>
+      <div>
+        <div class="card-title mb-1">Rede & Contexto</div>
+        ${field('IP', s.ip)}
+        ${field('Idioma', s.language)}
+        ${field('Fuso', s.timezone)}
+        ${field('Conexão', s.connection_type)}
+        ${field('Velocidade', s.connection_speed ? s.connection_speed + ' Mbps' : '—')}
+        ${field('Cookies', s.cookies ? 'Sim' : 'Não')}
+        ${field('DNT', s.dnt ? 'Sim' : 'Não')}
+        ${field('Ref Link', s.ref_link_id || '—')}
+      </div>
+    </div>
+    <hr class="divider">
+    <div class="card-title mb-1">Fingerprint & WebGL</div>
+    ${field('Fingerprint', s.fingerprint || '—')}
+    ${field('Canvas Hash', s.canvas_hash?.substring(0,20) || '—')}
+    ${field('WebGL', s.webgl?.substring(0,40) || '—')}
+    ${s.geo_lat ? `<hr class="divider"><div class="card-title mb-1">Geolocalização</div>
+      ${field('Latitude', s.geo_lat?.toFixed(6))}
+      ${field('Longitude', s.geo_lng?.toFixed(6))}
+      ${field('Precisão', s.geo_accuracy?.toFixed(0) + 'm')}
+      <a href="https://www.openstreetmap.org/?mlat=${s.geo_lat}&mlon=${s.geo_lng}&zoom=14" target="_blank" class="btn btn-secondary btn-sm mt-1">🗺 Ver no Mapa</a>
+    ` : ''}
+    ${d.photos.length ? `<hr class="divider"><div class="card-title mb-1">Fotos (${d.photos.length})</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap">${d.photos.map(p => `<button class="btn btn-secondary btn-sm" onclick="loadFullPhoto(${p.id})">📸 Foto #${p.id} (${fmtSize(p.size_bytes)})</button>`).join('')}</div>
+      <div id="inlinePhoto" class="mt-1"></div>
+    ` : ''}
+    <hr class="divider">
+    <div class="flex gap-2">
+      <button class="btn btn-danger btn-sm" onclick="deleteSession('${s.session_id}'); closeModal('detailModal')">🗑 Deletar</button>
+      <div class="text-muted" style="margin-left:auto; font-size:0.7rem">${fmt(s.created_at)}</div>
+    </div>
+  `;
+  openModal('detailModal');
+}
+
+async function loadFullPhoto(pid) {
+  const d = await api(`/api/photos/${pid}`);
+  document.getElementById('inlinePhoto').innerHTML = `<img src="${d.data_url}" style="max-width:100%; border-radius:8px; border:1px solid var(--c1)">`;
+}
+
+function field(l, v) {
+  return `<div style="display:flex; justify-content:space-between; gap:10px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.03)">
+    <span style="font-size:0.65rem; color:var(--t3); text-transform:uppercase; letter-spacing:0.08em">${l}</span>
+    <span style="font-size:0.72rem; color:var(--c2); text-align:right; word-break:break-all; max-width:65%">${v || '—'}</span>
+  </div>`;
+}
+
+async function deleteSession(sid) {
+  if (!confirm('Deletar sessão ' + sid + '?')) return;
+  await api(`/api/sessions/${sid}`, {method:'DELETE'});
+  toast('Sessão deletada', 'warn');
+  loadSessions();
+}
+
+function onNewSession() { loadSessions(); }
+
+loadSessions();
+</script>
+
+{% endblock %}

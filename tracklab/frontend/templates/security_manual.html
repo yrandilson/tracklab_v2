@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Manual Security Tools — TrackLab{% endblock %}
+{% block topbar_title %}⚙ Manual de Ferramentas de Seguranca{% endblock %}
+{% block content %}
+
+<div class="card mb-2">
+  <div class="card-header">
+    <span class="card-title">Visao Geral</span>
+  </div>
+  <p class="text-sm" style="line-height:1.8; color:var(--t2)">
+    Esta pagina documenta o uso das ferramentas em <strong>security_tools/</strong>.
+    Execute apenas em ambiente autorizado e preferencialmente em modo seguro (dry-run) no primeiro teste.
+  </p>
+  <p class="text-xs" style="line-height:1.7; color:var(--t3); margin-top:8px">
+    Dica de plataforma: em Windows prefira modos <strong>windows-event</strong> e <strong>windows-firewall</strong>,
+    enquanto em Linux use arquivos de log como <strong>/var/log/auth.log</strong> e bloqueio com <strong>ufw/iptables</strong>.
+  </p>
+</div>
+
+<div class="card mb-2">
+  <div class="card-header"><span class="card-title">1) Monitoramento e Deteccao</span></div>
+  <pre class="text-xs" style="white-space:pre-wrap; color:var(--t2)">
+python security_tools/ids_ssh_monitor.py --log-file /var/log/auth.log --threshold 5 --window 300 --dry-run
+python security_tools/port_service_scanner.py --host 127.0.0.1 --ports 1-1024 --allow 22,80,443
+python security_tools/port_watchdog.py --interval 5
+python security_tools/process_anomaly_monitor.py --interval 5
+python security_tools/arp_spoof_detector.py --iface eth0
+python security_tools/dns_tunnel_detector.py --iface eth0
+python security_tools/packet_sniffer.py --iface eth0 --count 50
+  </pre>
+</div>
+
+<div class="card mb-2">
+  <div class="card-header"><span class="card-title">2) Integridade e Forense</span></div>
+  <pre class="text-xs" style="white-space:pre-wrap; color:var(--t2)">
+python security_tools/fim_monitor.py baseline --paths backend frontend --output fim_baseline.json
+python security_tools/fim_monitor.py verify --paths backend frontend --baseline fim_baseline.json
+python security_tools/system_binary_fim.py baseline --output system_bins_baseline.json
+python security_tools/system_binary_fim.py verify --baseline system_bins_baseline.json
+python security_tools/forensic_collector.py --output forensic_snapshot.json
+python security_tools/yara_ioc_scanner.py --rules rules.yar --path .
+  </pre>
+</div>
+
+<div class="card mb-2">
+  <div class="card-header"><span class="card-title">3) Aplicacao, Dados e Compliance</span></div>
+  <pre class="text-xs" style="white-space:pre-wrap; color:var(--t2)">
+python security_tools/secrets_cli.py init
+python security_tools/secrets_cli.py set db_password supersecreto
+python security_tools/web_vuln_scanner.py --url http://localhost:5000/capture
+python security_tools/sbom_audit.py --requirements requirements.txt --output sbom.json
+python security_tools/patch_cve_checker.py --requirements requirements.txt
+python security_tools/log_compliance_audit.py
+  </pre>
+</div>
+
+<div class="card mb-2">
+  <div class="card-header"><span class="card-title">4) Infra e Defesa Ativa</span></div>
+  <pre class="text-xs" style="white-space:pre-wrap; color:var(--t2)">
+python security_tools/cloud_config_auditor.py --provider aws
+python security_tools/auto_encrypt_watcher.py --watch ./sensitive
+python security_tools/persistence_checker.py
+python security_tools/permissions_audit.py --root /
+python security_tools/host_hardening_audit.py
+python security_tools/rootkit_wrapper.py --tool rkhunter
+python security_tools/ssh_honeypot.py --host 0.0.0.0 --port 2222
+python security_tools/edr_lite.py --kill-suspicious
+  </pre>
+</div>
+
+<div class="card mb-2">
+  <div class="card-header"><span class="card-title">5) Exemplos Rapidos por SO</span></div>
+  <pre class="text-xs" style="white-space:pre-wrap; color:var(--t2)">
+# Windows
+python security_tools/ids_ssh_monitor.py --source windows-event --blocker windows-firewall --dry-run
+python security_tools/permissions_audit.py --root C:\\
+python security_tools/rootkit_wrapper.py --tool windows-defender
+python security_tools/log_compliance_audit.py
+
+# Linux
+python security_tools/ids_ssh_monitor.py --source file --log-file /var/log/auth.log --blocker ufw --dry-run
+python security_tools/permissions_audit.py --root /
+python security_tools/rootkit_wrapper.py --tool rkhunter
+python security_tools/log_compliance_audit.py
+  </pre>
+</div>
+
+<div class="card mb-2">
+  <div class="card-header"><span class="card-title">6) Orquestracao, Banco de Eventos e Alertas Criticos</span></div>
+  <pre class="text-xs" style="white-space:pre-wrap; color:var(--t2)">
+# 1) Executar perfil padrao (gera eventos unificados com score)
+python security_tools/launcher.py --profile producao --notify-critical
+
+# 2) Notificar eventos criticos em tempo real (webhook)
+# Defina TRACKLAB_ALERT_WEBHOOK_URL antes
+python security_tools/critical_notifier.py --log-file security_events.jsonl
+
+# 3) Visualizar risco/severidade no dashboard
+python security_tools/log_analyzer_dashboard.py --log-file security_events.jsonl --port 5055
+  </pre>
+</div>
+
+<div class="card mb-2">
+  <div class="card-header"><span class="card-title">7) Analise de Rede e IPs</span></div>
+  <pre class="text-xs" style="white-space:pre-wrap; color:var(--t2)">
+# Monitor de portas em tempo real
+python security_tools/advanced_port_monitor.py --interval 5 --allow 22,80,443
+
+# Sniffer multi-camada (ARP, IP, TCP, UDP, DNS, HTTP)
+python security_tools/network_sniffer.py --iface eth0 --count 200
+
+# Descoberta de hosts e servicos estilo Nmap
+python security_tools/host_discovery_scanner.py --targets 192.168.0.0/24 --ports 22,80,443
+
+# Analise de IPs com reputacao e geo opcional
+python security_tools/ip_intel_analyzer.py 8.8.8.8 1.1.1.1
+  </pre>
+</div>
+
+<div class="card">
+  <div class="card-header"><span class="card-title">Variaveis de Ambiente Necessarias</span></div>
+  <ul class="text-sm" style="line-height:2; color:var(--t2); padding-left:18px">
+    <li>TRACKLAB_MASTER_PASSWORD (secrets_cli.py)</li>
+    <li>TRACKLAB_ENCRYPT_PASSWORD (auto_encrypt_watcher.py)</li>
+    <li>TRACKLAB_ALERT_WEBHOOK_URL (critical_notifier.py)</li>
+    <li>ABUSEIPDB_API_KEY / IPINFO_TOKEN (ip_intel_analyzer.py, opcionais)</li>
+  </ul>
+</div>
+
+{% endblock %}

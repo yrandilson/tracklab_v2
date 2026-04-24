@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Fotos — TrackLab{% endblock %}
+{% block topbar_title %}📸 Galeria de Fotos{% endblock %}
+{% block content %}
+
+<div class="flex justify-between items-center mb-2 flex-wrap gap-2">
+  <div id="photoStats" class="text-muted"></div>
+  <div class="flex gap-2">
+    <button class="btn btn-secondary" onclick="loadPhotos()">🔄 Atualizar</button>
+  </div>
+</div>
+
+<div id="gallery" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px"></div>
+
+<div class="pagination" id="photoPagination" style="display:flex; gap:6px; justify-content:center; margin-top:20px"></div>
+
+<!-- Full Photo Modal -->
+<div class="modal-overlay" id="photoModal">
+  <div class="modal" style="max-width:700px; width:90vw">
+    <button class="modal-close" onclick="closeModal('photoModal')">✕</button>
+    <div id="photoModalContent"></div>
+  </div>
+</div>
+
+<style>
+.photo-card {
+  background:rgba(255,255,255,0.92); border:1px solid rgba(213,222,234,0.9); border-radius:14px;
+  overflow:hidden; cursor:pointer; transition:all 0.2s; position:relative;
+  box-shadow:0 12px 40px rgba(16,32,51,0.05);
+}
+.photo-card:hover { border-color:rgba(37,99,235,0.35); transform:translateY(-3px); box-shadow:0 16px 34px rgba(37,99,235,0.10); }
+.photo-thumb { width:100%; aspect-ratio:1; object-fit:cover; display:block; }
+.photo-meta { padding:10px 12px; border-top:1px solid rgba(213,222,234,0.8); }
+.photo-time { font-size:0.65rem; color:var(--t3); margin-bottom:3px; }
+.photo-info { font-size:0.7rem; color:var(--t2); }
+.photo-del {
+  position:absolute; top:6px; right:6px;
+  background:rgba(255,255,255,0.92); border:1px solid rgba(225,29,72,0.14); color:var(--c3);
+  width:26px; height:26px; border-radius:6px; cursor:pointer;
+  font-size:0.7rem; opacity:0; transition:opacity 0.2s;
+}
+.photo-card:hover .photo-del { opacity:1; }
+.no-photo-grid {
+  grid-column:1/-1; text-align:center; padding:60px 20px; color:var(--t3);
+}
+.page-btn { background:#fff; border:1px solid var(--b1); color:var(--t2); padding:5px 12px; border-radius:6px; cursor:pointer; font-family:var(--mono); font-size:0.72rem; }
+.page-btn.active { background:rgba(15,118,110,0.10); border-color:rgba(15,118,110,0.25); color:var(--c1); }
+</style>
+
+<script>
+let photoPage = 1;
+
+async function loadPhotos() {
+  const d = await api(`/api/photos?page=${photoPage}&per=12`);
+  document.getElementById('photoStats').textContent = `${d.total} fotos capturadas`;
+  const gallery = document.getElementById('gallery');
+  if (!d.photos.length) {
+    gallery.innerHTML = '<div class="no-photo-grid"><div style="font-size:3rem;margin-bottom:12px">📷</div><div>Nenhuma foto capturada ainda</div><div style="font-size:0.75rem;margin-top:6px">Vá em <a href="/capture" style="color:var(--c1)">Captura</a> e tire uma foto</div></div>';
+    return;
+  }
+  gallery.innerHTML = d.photos.map(p => `
+    <div class="photo-card" onclick="showPhoto(${p.id})">
+      <div style="width:100%; aspect-ratio:1; background:#f3f7fb; display:flex; align-items:center; justify-content:center; overflow:hidden">
+        <img src="/api/photos/${p.id}/thumb" alt="" class="photo-thumb" onerror="this.parentElement.innerHTML='<span style=font-size:2rem>📷</span>'" loading="lazy">
+      </div>
+      <button class="photo-del" onclick="event.stopPropagation(); deletePhoto(${p.id})">✕</button>
+      <div class="photo-meta">
+        <div class="photo-time">${timeSince(p.created_at)}</div>
+        <div class="photo-info">${p.browser||'?'} / ${p.os||'?'}</div>
+        <div class="photo-info" style="color:var(--t3)">${fmtSize(p.size_bytes)}</div>
+      </div>
+    </div>
+  `).join('');
+
+  // Pagination
+  const pages = Math.ceil(d.total / 12);
+  const pag = document.getElementById('photoPagination');
+  if (pages <= 1) { pag.innerHTML = ''; return; }
+  pag.innerHTML = Array.from({length: Math.min(pages, 8)}, (_,i) => i+1).map(i =>
+    `<button class="page-btn ${i===photoPage?'active':''}" onclick="photoPage=${i}; loadPhotos()">${i}</button>`
+  ).join('');
+}
+
+async function showPhoto(id) {
+  const d = await api(`/api/photos/${id}`);
+  document.getElementById('photoModalContent').innerHTML = `
+    <img src="${d.data_url}" style="width:100%; border-radius:8px; margin-bottom:16px">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.76rem">
+      <div><span style="color:var(--t3)">Sessão: </span><span style="color:var(--c2)">${d.session_id}</span></div>
+      <div><span style="color:var(--t3)">Tamanho: </span><span style="color:var(--c2)">${fmtSize(d.size_bytes)}</span></div>
+      <div><span style="color:var(--t3)">Capturado: </span><span style="color:var(--c2)">${fmt(d.created_at)}</span></div>
+    </div>
+    <div class="flex gap-2 mt-2">
+      <a href="${d.data_url}" download="tracklab_${d.session_id}.jpg" class="btn btn-secondary btn-sm">⬇ Baixar</a>
+      <button class="btn btn-danger btn-sm" onclick="deletePhoto(${d.id}); closeModal('photoModal')">🗑 Deletar</button>
+    </div>
+  `;
+  openModal('photoModal');
+}
+
+async function deletePhoto(id) {
+  if (!confirm('Deletar esta foto?')) return;
+  await api(`/api/photos/${id}`, {method:'DELETE'});
+  toast('Foto deletada', 'warn');
+  loadPhotos();
+}
+
+loadPhotos();
+</script>
+
+{% endblock %}

@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Links — TrackLab{% endblock %}
+{% block topbar_title %}⊕ Links Rastreados{% endblock %}
+{% block content %}
+
+<!-- Create Link -->
+<div class="card mb-2">
+  <div class="card-header">
+    <span class="card-title">Criar Link Rastreado</span>
+  </div>
+  <div style="display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:12px; align-items:end; flex-wrap:wrap">
+    <div>
+      <label class="text-xs text-muted" style="display:block; margin-bottom:5px">Nome do Link *</label>
+      <input class="input w-full" id="lName" placeholder="Ex: Campanha Instagram">
+    </div>
+    <div>
+      <label class="text-xs text-muted" style="display:block; margin-bottom:5px">Descrição</label>
+      <input class="input w-full" id="lDesc" placeholder="Contexto opcional">
+    </div>
+    <div>
+      <label class="text-xs text-muted" style="display:block; margin-bottom:5px">Página de Destino</label>
+      <select class="input w-full" id="lTarget">
+        <option value="/capture">Página de Captura</option>
+        <option value="/">Início</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="createLink()" style="padding:9px 20px">+ Criar</button>
+  </div>
+</div>
+
+<!-- Stats Row -->
+<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:20px" id="linkStatsRow"></div>
+
+<!-- Links Table -->
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Links Ativos</span>
+    <button class="btn btn-secondary btn-sm" onclick="loadLinks()">🔄</button>
+  </div>
+  <div id="linksTable">
+    <div style="padding:30px; text-align:center; color:var(--t3)">Carregando...</div>
+  </div>
+</div>
+
+<!-- Link Hits Modal -->
+<div class="modal-overlay" id="hitsModal">
+  <div class="modal" style="width:600px">
+    <button class="modal-close" onclick="closeModal('hitsModal')">✕</button>
+    <div class="card-title mb-2" id="hitsTitle">Acessos</div>
+    <div id="hitsList"></div>
+  </div>
+</div>
+
+<style>
+.link-url-box {
+  display:flex; align-items:center; gap:8px;
+  background:var(--s2); border:1px solid var(--b1);
+  border-radius:6px; padding:6px 10px;
+  font-size:0.72rem; color:var(--c2);
+  font-family:var(--mono);
+}
+
+.hits-gauge {
+  display:flex; align-items:center; gap:10px;
+}
+
+.hits-num { font-size:1.4rem; font-weight:700; color:var(--c1); font-family:var(--display); }
+</style>
+
+<script>
+async function loadLinks() {
+  const d = await api('/api/links');
+  const links = d.links;
+
+  // Stats
+  const totalHits = links.reduce((a, l) => a + l.total_hits, 0);
+  const totalUniq = links.reduce((a, l) => a + l.unique_hits, 0);
+  document.getElementById('linkStatsRow').innerHTML = [
+    { label:'Links Criados', val: links.length, sa:'var(--c1)' },
+    { label:'Total de Hits', val: totalHits, sa:'var(--c4)' },
+    { label:'Hits Únicos', val: totalUniq, sa:'var(--c2)' },
+  ].map(s => `
+    <div style="background:var(--s1); border:1px solid var(--b1); border-radius:10px; padding:14px; position:relative; overflow:hidden">
+      <div style="position:absolute; top:0; left:0; right:0; height:2px; background:${s.sa}"></div>
+      <div style="font-size:1.8rem; font-weight:700; color:var(--t1); font-family:var(--display)">${s.val}</div>
+      <div style="font-size:0.65rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--t3)">${s.label}</div>
+    </div>
+  `).join('');
+
+  // Table
+  const el = document.getElementById('linksTable');
+  if (!links.length) {
+    el.innerHTML = '<div style="padding:30px; text-align:center; color:var(--t3)">Nenhum link criado ainda</div>';
+    return;
+  }
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>Nome</th><th>Link Rastreado</th><th>Destino</th>
+      <th>Total Hits</th><th>Únicos</th><th>Criado por</th><th>Data</th><th>Ações</th>
+    </tr></thead>
+    <tbody>${links.map(l => {
+      const trackUrl = location.origin + '/t/' + l.link_id;
+      return `<tr>
+        <td>
+          <div style="font-weight:600; color:var(--t1); font-size:0.8rem">${l.name}</div>
+          ${l.description ? `<div class="text-xs text-muted">${l.description}</div>` : ''}
+        </td>
+        <td>
+          <div class="link-url-box">
+            <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px">${trackUrl}</span>
+            <button class="btn btn-secondary btn-xs" onclick="copyUrl('${trackUrl}')">📋</button>
+          </div>
+        </td>
+        <td><span class="badge b-gray">${l.target_url}</span></td>
+        <td>
+          <div class="hits-gauge">
+            <span class="hits-num">${l.total_hits}</span>
+          </div>
+        </td>
+        <td><span class="badge b-blue">${l.unique_hits}</span></td>
+        <td class="text-xs">${l.created_by || '—'}</td>
+        <td class="text-xs">${timeSince(l.created_at)}</td>
+        <td style="display:flex; gap:4px">
+          <button class="btn btn-secondary btn-xs" onclick="showHits('${l.link_id}', '${l.name}')">📊</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteLink('${l.link_id}')">✕</button>
+        </td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+function copyUrl(url) {
+  navigator.clipboard.writeText(url).then(() => toast('🔗 Link copiado!', 'success'));
+}
+
+async function createLink() {
+  const name = document.getElementById('lName').value.trim();
+  if (!name) { toast('Nome obrigatório', 'error'); return; }
+  const d = await api('/api/links', {
+    method: 'POST',
+    body: JSON.stringify({
+      name, description: document.getElementById('lDesc').value,
+      targetUrl: document.getElementById('lTarget').value
+    })
+  });
+  if (d.ok) {
+    document.getElementById('lName').value = '';
+    document.getElementById('lDesc').value = '';
+    toast('✅ Link criado: /t/' + d.link.link_id, 'success');
+    loadLinks();
+  }
+}
+
+async function showHits(lid, name) {
+  document.getElementById('hitsTitle').textContent = `📊 Acessos: ${name}`;
+  openModal('hitsModal');
+  const d = await api(`/api/links/${lid}/hits`);
+  const list = document.getElementById('hitsList');
+  if (!d.hits.length) {
+    list.innerHTML = '<div class="text-muted" style="text-align:center; padding:20px">Nenhum acesso ainda</div>';
+    return;
+  }
+  list.innerHTML = `<table>
+    <thead><tr><th>Quando</th><th>IP</th><th>Browser</th><th>Referer</th></tr></thead>
+    <tbody>${d.hits.map(h => `<tr>
+      <td class="text-xs">${timeSince(h.created_at)}</td>
+      <td class="font-mono text-xs">${h.ip || '—'}</td>
+      <td class="text-xs">${(h.user_agent||'').substring(0,30)}</td>
+      <td class="text-xs text-muted truncate" style="max-width:150px">${h.referer || '—'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+async function deleteLink(lid) {
+  if (!confirm('Deletar este link e todos os seus registros?')) return;
+  await api(`/api/links/${lid}`, {method:'DELETE'});
+  toast('Link deletado', 'warn');
+  loadLinks();
+}
+
+loadLinks();
+</script>
+
+{% endblock %}
